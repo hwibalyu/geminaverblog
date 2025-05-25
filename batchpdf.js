@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { crawlNaverBlogSearchAllPages, searchBlogs } = require('./crawler');
-const { saveBlogPostAsPDF } = require('./makepdf');
+const { saveBlogPostAsPDF, saveBlogPostAsJSON } = require('./makepdf');
 const { stringify } = require('querystring');
 const puppeteer = require('puppeteer');
 
@@ -108,16 +108,20 @@ async function processBlogResults(
           // 각 블로그 포스트에 대해 PDF 생성
           let current = 0;
           const total = blogs.length;
+          const saveDataList = [];
           for (const blog of blogs) {
                const outputPath = urlToFilename(blog.url);
                try {
-                    await saveBlogPostAsPDF(
+                    const saveData = await saveBlogPostAsPDF(
                          companyname,
                          blog.url,
                          outputPath,
                          pdfGenerationCondition,
                          apiKey
                     );
+                    if (saveData && saveData.url) {
+                         saveDataList.push(saveData);
+                    }
                } catch (error) {
                     console.error(
                          `[ERROR] PDF 생성 실패 (${blog.url}):`,
@@ -130,7 +134,24 @@ async function processBlogResults(
                await new Promise((resolve) => setTimeout(resolve, 1000));
           }
 
-          console.log('[INFO] 모든 PDF 생성이 완료되었습니다.');
+          // saveDataList를 JSON으로 저장
+          if (saveDataList.length > 0) {
+               const companyDir = path.join(process.cwd(), companyname);
+               if (!fs.existsSync(companyDir)) {
+                    fs.mkdirSync(companyDir, { recursive: true });
+               }
+               const saveDataPath = path.join(
+                    companyDir,
+                    `${companyname}.json`
+               );
+               fs.writeFileSync(
+                    saveDataPath,
+                    JSON.stringify(saveDataList, null, 2)
+               );
+               console.log(`[INFO] 결과가 ${saveDataPath}에 저장되었습니다.`);
+          }
+
+          console.log('[INFO] 데이터 생성이 완료되었습니다.');
      } catch (error) {
           console.error('[ERROR] JSON 파일 처리 중 오류:', error);
           throw error;
@@ -157,6 +178,16 @@ async function filterJsonWithGemini(
      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
      const prompt = `
      아래의 블로그 리스트를 읽고, 판단조건을 만족할 가능성이 낮은 포스트는 제외하고, 반드시 JSON만 반환하세요. 불필요한 설명, 코드블록, 주석, 텍스트는 제거하세요.
+     반환 JSON은 다음과 같은 형식이어야 합니다:
+     [
+          {
+               "url": "https://example.com/blog-post-1"
+               
+          },
+          {
+               "url": "https://example.com/blog-post-2"               
+          }
+     ]
      판단조건 :
      ${filteringCondition}
      

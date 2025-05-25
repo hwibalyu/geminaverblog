@@ -35,9 +35,9 @@ async function crawlNaverBlogSearchAllPages(
                }),
                page.click(searchButtonSelector),
           ]);
-          console.log(`[INFO] 초기 검색 완료. URL: ${page.url()}`);
+          // console.log(`[INFO] 초기 검색 완료. URL: ${page.url()}`);
 
-          console.log('[INFO] 기간 필터를 입력값으로 변경합니다.');
+          // console.log('[INFO] 기간 필터를 입력값으로 변경합니다.');
           const periodDropdownSelector =
                '.search_option .area_dropdown[data-set="period"] > a.present_selected';
           await page.waitForSelector(periodDropdownSelector, {
@@ -109,6 +109,24 @@ async function crawlNaverBlogSearchAllPages(
           console.log(
                `[SUCCESS] 기간을 ${startDate} ~ ${endDate}로 변경 완료. URL: ${page.url()}`
           );
+
+          // 검색결과 건수 추출 및 출력
+          try {
+               const infoSelector = '.search_information .search_number';
+               await page.waitForSelector(infoSelector, { timeout: 5000 });
+               const resultCount = await page.evaluate((sel) => {
+                    const el = document.querySelector(sel);
+                    if (!el) return null;
+                    // 숫자만 추출
+                    const match = el.textContent.replace(/,/g, '').match(/\d+/);
+                    return match ? parseInt(match[0], 10) : null;
+               }, infoSelector);
+               if (resultCount !== null) {
+                    console.log(`[INFO] 검색결과 건수: ${resultCount}건`);
+               }
+          } catch (e) {
+               console.log('[INFO] 검색결과 건수 추출 실패:', e.message);
+          }
 
           let crawlingPageNum = 1; // 크롤링 중인 실제 페이지 번호 (화면에 표시되는 번호)
           let logicalPageNumForNextButton = 1; // 다음 페이지 버튼을 찾기 위한 논리적 페이지 번호
@@ -300,7 +318,7 @@ async function crawlNaverBlogSearchAllPages(
                }
                const jsonPath = path.join(
                     companyDir,
-                    `${keyword}_results.json`
+                    `${keyword}_rawdata.json`
                );
                fs.writeFileSync(jsonPath, JSON.stringify(allResults, null, 2));
                console.log(`전체 결과가 ${jsonPath} 파일에 저장되었습니다.`);

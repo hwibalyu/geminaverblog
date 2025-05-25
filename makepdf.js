@@ -177,10 +177,98 @@ async function saveBlogPostAsPDF(
           });
 
           console.log(`[INFO] PDF가 성공적으로 저장되었습니다: ${outputPath}`);
+
+          if (browser) await browser.close();
+          return { url: blogUrl, reason: reason };
      } catch (err) {
           console.error(`[ERROR] PDF 저장 실패:`, err.message);
-     } finally {
           if (browser) await browser.close();
+          return;
+     }
+}
+
+/**
+ * 주어진 네이버 블로그 포스팅 URL을 저장하는 함수
+ * @param {string} companyname - 회사명
+ * @param {string} blogUrl - 저장할 네이버 블로그 포스트의 URL
+ * @param {string} outputPath - 저장할  파일 경로 (예: 'output.pdf')
+ */
+async function saveBlogPostAsJSON(
+     companyname,
+     blogUrl,
+     outputPath,
+     pdfGenerationCondition = '',
+     apiKey = ''
+) {
+     let browser, page;
+     try {
+          // companyname 하위 폴더 생성 및 경로 지정
+          const companyDir = path.join(process.cwd(), companyname);
+          if (!fs.existsSync(companyDir)) {
+               fs.mkdirSync(companyDir, { recursive: true });
+          }
+          // const pdfFileName = path.basename(outputPath);
+          // outputPath = path.join(companyDir, pdfFileName);
+
+          browser = await puppeteer.launch({ headless: true });
+          page = await browser.newPage();
+
+          // 뷰포트 크기 설정
+          await page.setViewport({
+               width: 1200,
+               height: 800,
+          });
+
+          await page.goto(blogUrl, {
+               waitUntil: 'networkidle0',
+               timeout: 60000,
+          });
+
+          // iframe 찾기 및 메인 프레임 설정
+          let mainFrame = page;
+          const frames = page.frames();
+          for (const frame of frames) {
+               if (
+                    frame.url().includes('blog.naver.com') &&
+                    frame !== page.mainFrame()
+               ) {
+                    mainFrame = frame;
+                    break;
+               }
+          }
+
+          // 본문 텍스트 추출 (초기 판단용)
+          const blogTextQuick = await mainFrame.evaluate(() => {
+               const el = document.querySelector(
+                    '#post-view\\[\\d+\\], .se-main-container'
+               );
+               return el ? el.innerText : document.body.innerText;
+          });
+          console.log(`[INFO] ${blogUrl} 분석중..`);
+          const shouldGeneratePDFResult = await shouldGeneratePDFWithGemini(
+               companyname,
+               blogTextQuick,
+               pdfGenerationCondition,
+               apiKey
+          );
+          const shouldGenerate = shouldGeneratePDFResult.result === 'YES';
+          const reason = shouldGeneratePDFResult.reason;
+
+          if (!shouldGenerate) {
+               console.log('[INFO] Gemini 판단 결과: url 저장하지 않음.');
+               console.log(`[REASON] ${reason} \n`);
+               return;
+          }
+
+          console.log('[INFO] Gemini 판단 결과: url 저장.');
+          console.log(`[REASON] ${reason}`);
+
+          if (browser) await browser.close();
+          return { url: blogUrl, reason: reason };
+     } catch (err) {
+          console.error(`[ERROR] url 저장 실패:`, err.message);
+          if (browser) await browser.close();
+          return;
      }
 }
 
@@ -210,7 +298,7 @@ async function shouldGeneratePDFWithGemini(
           9. 특징주, 이슈주, 테마주, 급등주 등에 대한 포스팅은 반드시 제외할 것`;
      }
      const prompt = `
-     아래 블로그 본문을 읽고 PDF로 저장할 가치가 있는지를 판단하여, 그 판단근거 함께 저장가치가 있으면 'YES', 그렇지 않으면 'NO'만 대답하세요.
+     아래 블로그 본문을 읽고 PDF로 저장할 가치가 있는지를 판단하여, 저장가치가 있으면 'YES', 그렇지 않으면 'NO'만 대답하세요. 반드시 그렇게 판단한 이유도 함께 작성하세요.\n
      \n
      답변 형식을 다음과 같습니다.\n
      답변형식:
@@ -292,4 +380,4 @@ if (require.main === module) {
      saveBlogPostAsPDF('', url, output);
 }
 
-module.exports = { saveBlogPostAsPDF };
+module.exports = { saveBlogPostAsPDF, saveBlogPostAsJSON };
