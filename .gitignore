@@ -1,0 +1,9 @@
+node_modules/
+
+.env
+gemini-api-key.txt
+
+dist/
+build/
+
+.DS_Store
