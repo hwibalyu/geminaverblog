@@ -74,6 +74,16 @@
                     background-color: #f2dede;
                     color: #a94442;
                }
+               #progress-bar-container {
+                    margin-top: 20px;
+                    display: none;
+               }
+               #progress-bar {
+                    height: 24px;
+                    width: 0%;
+                    background: #4caf50;
+                    transition: width 0.3s;
+               }
                #console {
                     margin-top: 20px;
                     padding: 15px;
@@ -148,6 +158,39 @@
                     검색 시작
                </button>
                <div id="status"></div>
+               <div
+                    id="progress-bar-container"
+                    style="margin-top: 20px; display: none"
+               >
+                    <div
+                         style="
+                              background: #eee;
+                              border-radius: 6px;
+                              height: 24px;
+                              width: 100%;
+                              overflow: hidden;
+                         "
+                    >
+                         <div
+                              id="progress-bar"
+                              style="
+                                   height: 100%;
+                                   width: 0%;
+                                   background: #4caf50;
+                                   transition: width 0.3s;
+                              "
+                         ></div>
+                    </div>
+                    <div
+                         id="progress-label"
+                         style="
+                              text-align: center;
+                              margin-top: 4px;
+                              color: #333;
+                              font-size: 13px;
+                         "
+                    ></div>
+               </div>
                <div id="console"></div>
           </div>
 
@@ -250,7 +293,7 @@
                // 검색 완료 이벤트 처리
                ipcRenderer.on('search-complete', (event, result) => {
                     document.getElementById('searchBtn').disabled = false;
-
+                    hideProgressBar();
                     if (result.success) {
                          showStatus('작업이 완료되었습니다!', 'success');
                     } else {
@@ -260,6 +303,34 @@
                          );
                     }
                });
+
+               // 진행률 바 업데이트 이벤트 처리
+               ipcRenderer.on(
+                    'progress-update',
+                    (event, { current, total }) => {
+                         showProgressBar(current, total);
+                    }
+               );
+
+               function showProgressBar(current, total) {
+                    const bar = document.getElementById('progress-bar');
+                    const label = document.getElementById('progress-label');
+                    const container = document.getElementById(
+                         'progress-bar-container'
+                    );
+                    container.style.display = 'block';
+                    const percent =
+                         total > 0 ? Math.round((current / total) * 100) : 0;
+                    bar.style.width = percent + '%';
+                    label.textContent = `PDF 생성 진행: ${current} / ${total} (${percent}%)`;
+               }
+               function hideProgressBar() {
+                    document.getElementById(
+                         'progress-bar-container'
+                    ).style.display = 'none';
+                    document.getElementById('progress-bar').style.width = '0%';
+                    document.getElementById('progress-label').textContent = '';
+               }
 
                function showStatus(message, type) {
                     const statusDiv = document.getElementById('status');

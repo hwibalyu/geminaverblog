@@ -1,8 +1,9 @@
 const path = require('path');
 const fs = require('fs');
-const { crawlNaverBlogSearchAllPages } = require('./crawler');
+const { crawlNaverBlogSearchAllPages, searchBlogs } = require('./crawler');
 const { saveBlogPostAsPDF } = require('./makepdf');
 const { stringify } = require('querystring');
+const puppeteer = require('puppeteer');
 
 /**
  * 파일명으로 사용할 수 있도록 URL을 안전하게 변환
@@ -18,39 +19,49 @@ function urlToFilename(url) {
 
 async function main() {
      const [, , companyname, startDate, endDate] = process.argv;
+     require('dotenv').config();
+     const apiKey = process.env.GEMINI_API_KEY;
      if (!companyname || !startDate || !endDate) {
           console.error(
-               '사용법: node batchpdf.js <keyword> <startDate> <endDate>'
+               '사용법: node batchpdf.js <keyword> <startDate> <endDate> [geminiApiKey]'
           );
           process.exit(1);
      }
      console.log(
           `[INFO] 블로그 크롤링 시작: ${companyname}, ${startDate} ~ ${endDate}`
      );
-     const posts = await crawlNaverBlogSearchAllPages(
-          companyname,
-          startDate,
-          endDate
-     );
-     if (!posts || posts.length === 0) {
-          console.log('[INFO] 검색 결과가 없습니다.');
-          return;
-     }
+     let browser;
+     browser = await puppeteer.launch({ headless: true });
+     try {
+          // 크롤링
+          const resultFile = await searchBlogs(companyname, startDate, endDate);
+          // const posts = await crawlNaverBlogSearchAllPages(
+          //      companyname,
+          //      startDate,
+          //      endDate,
+          //      browser
+          // );
+          if (!resultFile || resultFile.length === 0) {
+               console.log('[INFO] 검색 결과가 없습니다.');
+               return;
+          }
+          if (resultFile.length > 100) {
+               console.warn(
+                    '[WARNING] 검색 결과가 100건을 초과합니다. 키워드를 더 구체적으로 설정하거나, 날짜범위를 제한하세요.'
+               );
+               return;
+          }
 
-     if (posts.length > 100) {
-          console.warn(
-               '[WARNING] 검색 결과가 100건을 초과합니다. 키워드를 더 구체적으로 설정하거나, 날짜범위를 제한하세요.'
+          await processBlogResults(
+               companyname,
+               resultFile,
+               apiKey,
+               undefined,
+               undefined,
+               undefined
           );
-          return;
-     }
-     let number = 0;
-     for (const post of posts) {
-          number++;
-          if (!post.url || post.url === 'N/A') continue;
-          const filename = urlToFilename(post.url);
-          const outputPath = path.join(process.cwd(), filename);
-          console.log(`[INFO] ${number}/${posts.length} PDF 생성: ${post.url}`);
-          await saveBlogPostAsPDF(companyname, post.url, outputPath);
+     } finally {
+          await browser.close();
      }
      console.log('[SUCCESS] 모든 PDF 생성 완료!');
 }
@@ -60,7 +71,8 @@ async function processBlogResults(
      resultsFile,
      apiKey = '',
      filteringCondition,
-     pdfGenerationCondition = ''
+     pdfGenerationCondition = '',
+     progressCallback // <-- 추가: 진행률 콜백
 ) {
      try {
           // resultsFile이 디렉토리인지 확인
@@ -94,6 +106,8 @@ async function processBlogResults(
           console.log(`[INFO] ${blogs.length}개의 블로그 포스트를 처리합니다.`);
 
           // 각 블로그 포스트에 대해 PDF 생성
+          let current = 0;
+          const total = blogs.length;
           for (const blog of blogs) {
                const outputPath = urlToFilename(blog.url);
                try {
@@ -110,8 +124,8 @@ async function processBlogResults(
                          error.message
                     );
                }
-
-               console.log('\n');
+               current++;
+               if (progressCallback) progressCallback(current, total);
                // 과도한 요청 방지를 위한 딜레이
                await new Promise((resolve) => setTimeout(resolve, 1000));
           }
@@ -136,13 +150,13 @@ async function filterJsonWithGemini(
           1. 기업의 실적분석이나, 실적 추정 내용이 있는 경우 반드시 포함
           2. 사업부문 분석, 비지니스모델 분석, 재무분석, 밸류에이션, 산업분석, 경제적 해자 분석, 경쟁력 분석, 경쟁우위, 경쟁사 분석 중 어느 하나라도 포함되어 있으면 반드시 포함
           2. 애널리스트의 리포트 내용을 요약한 경우는 제외(예를 들어, xxx 애널리스트의 리포트 요약 등은 제외할 것)
-          3. 주가나 거래량 등의 정량적인 내용에 집중한 경우는 제외
+          3. 주가의 급등락, 거래량, 거래대금 등의 정량적인 내용에 집중한 경우는 제외
           4. 기업의 제품에 대한 리뷰 포스팅은 제외`
 ) {
      apiKey = apiKey || 'YOUR_GEMINI_API_KEY';
      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
      const prompt = `
-     아래의 블로그 리스트를 읽고, 판단조건을 만족할 가능성이 낮은 포스트는 제외하고, 다시 json 형태로 반환하세요.
+     아래의 블로그 리스트를 읽고, 판단조건을 만족할 가능성이 낮은 포스트는 제외하고, 반드시 JSON만 반환하세요. 불필요한 설명, 코드블록, 주석, 텍스트는 제거하세요.
      판단조건 :
      ${filteringCondition}
      

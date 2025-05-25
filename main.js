@@ -127,11 +127,16 @@ ipcMain.on(
                     'info'
                );
 
-               // PDF 생성 실행
+               // PDF 생성 실행 (진행률 콜백 전달)
                await processBlogResults(
                     keyword,
                     resultFile,
-                    apiKey || getSavedApiKey()
+                    apiKey || getSavedApiKey(),
+                    undefined,
+                    undefined,
+                    (current, total) => {
+                         event.reply('progress-update', { current, total });
+                    }
                );
 
                updateStatus(event, 'PDF 생성이 완료되었습니다!', 'success');
