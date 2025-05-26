@@ -8,12 +8,15 @@ const puppeteer = require('puppeteer');
 /**
  * 파일명으로 사용할 수 있도록 URL을 안전하게 변환
  */
-function urlToFilename(url) {
+function urlToFilename(url, date) {
      return (
           url
                .replace(/https?:\/\//, '')
                .replace(/[^a-zA-Z0-9-_\.]/g, '_')
-               .slice(0, 100) + '.pdf'
+               .slice(0, 30) +
+          '__@' +
+          date +
+          '.pdf'
      ); // 너무 길면 100자 제한
 }
 
@@ -110,7 +113,7 @@ async function processBlogResults(
           const total = blogs.length;
           const saveDataList = [];
           for (const blog of blogs) {
-               const outputPath = urlToFilename(blog.url);
+               const outputPath = urlToFilename(blog.url, blog.date);
                try {
                     const saveData = await saveBlogPostAsPDF(
                          companyname,
@@ -182,14 +185,17 @@ async function filterJsonWithGemini(
      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
      const prompt = `
      아래의 블로그 리스트를 읽고, 판단조건을 만족할 가능성이 낮은 포스트는 제외하고, 반드시 JSON만 반환하세요. 불필요한 설명, 코드블록, 주석, 텍스트는 제거하세요.
-     반환 JSON은 다음과 같은 형식이어야 합니다:
+     반환 JSON은 다음과 같은 형식이어야 합니다. date에는 리스트에 기재되어 있는 블로그 포스팅 날짜를 YYYY-MM-DD 형식으로 입력하고, url은 블로그 포스트의 URL을 입력하세요.:
      [
           {
-               "url": "https://example.com/blog-post-1"
+               "url": "https://example.com/blog-post-1",
+               "date": "2023-10-01"
                
           },
           {
-               "url": "https://example.com/blog-post-2"               
+               "url": "https://example.com/blog-post-2",
+               "date": "2023-10-02"
+
           }
      ]
      판단조건 :
