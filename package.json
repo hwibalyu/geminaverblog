@@ -6,7 +6,9 @@
      "scripts": {
           "start": "electron .",
           "build": "electron-builder",
-          "test": "echo \"Error: no test specified\" && exit 1"
+          "test": "echo \"Error: no test specified\" && exit 1",
+          "dist": "electron-builder",
+          "dist:win": "electron-builder --win"
      },
      "keywords": [],
      "author": "",
@@ -18,5 +20,20 @@
      "devDependencies": {
           "electron": "^36.3.1",
           "electron-builder": "^26.0.12"
+     },
+     "build": {
+          "appId": "com.example.myapp",
+          "productName": "My Awesome App",
+          "mac": {
+               "category": "public.app-category.utilities"
+          },
+          "win": {
+               "target": "nsis",
+               "icon": "build/icon.ico"
+          },
+          "nsis": {
+               "oneClick": false,
+               "allowToChangeInstallationDirectory": true
+          }
      }
 }
