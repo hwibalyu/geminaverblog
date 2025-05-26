@@ -69,6 +69,7 @@ async function saveBlogPostAsPDF(
           );
           const shouldGenerate = shouldGeneratePDFResult.result === 'YES';
           const reason = shouldGeneratePDFResult.reason;
+          const abstract = shouldGeneratePDFResult.abstract;
 
           if (!shouldGenerate) {
                console.log('[INFO] Gemini 판단 결과: PDF 생성하지 않음.');
@@ -113,9 +114,9 @@ async function saveBlogPostAsPDF(
           // 전체 페이지 스크롤
           await autoScroll(mainFrame);
 
-          // URL과 reason 정보 추가 (스타일 개선)
+          // URL과 reason, abstract 정보 추가 (스타일 개선)
           await mainFrame.evaluate(
-               (url, reason) => {
+               (url, reason, abstract) => {
                     const infoDiv = document.createElement('div');
                     infoDiv.style.width = '100%';
                     infoDiv.style.background = '#f8f9fa';
@@ -142,8 +143,17 @@ async function saveBlogPostAsPDF(
                     reasonDiv.style.whiteSpace = 'pre-wrap';
                     reasonDiv.innerHTML = `<span style="color:#868e96;width:70px;display:inline-block;">생성 사유:</span> <span style="font-weight:500;">${reason}</span>`;
 
+                    const abstractDiv = document.createElement('div');
+                    abstractDiv.style.fontSize = '15px';
+                    abstractDiv.style.lineHeight = '1.6';
+                    abstractDiv.style.color = '#495057';
+                    abstractDiv.style.whiteSpace = 'pre-wrap';
+                    abstractDiv.style.marginTop = '10px';
+                    abstractDiv.innerHTML = `<span style="color:#868e96;width:70px;display:inline-block;">요약:</span> <span style="font-weight:500;">${abstract}</span>`;
+
                     infoDiv.appendChild(urlDiv);
                     infoDiv.appendChild(reasonDiv);
+                    infoDiv.appendChild(abstractDiv);
 
                     // body의 가장 앞에 추가
                     if (document.body.firstChild) {
@@ -156,7 +166,8 @@ async function saveBlogPostAsPDF(
                     }
                },
                blogUrl,
-               reason
+               reason,
+               abstract
           );
 
           // 페이지가 완전히 로드될 때까지 대기
@@ -253,6 +264,7 @@ async function saveBlogPostAsJSON(
           );
           const shouldGenerate = shouldGeneratePDFResult.result === 'YES';
           const reason = shouldGeneratePDFResult.reason;
+          const abstract = shouldGeneratePDFResult.abstract;
 
           if (!shouldGenerate) {
                console.log('[INFO] Gemini 판단 결과: url 저장하지 않음.');
@@ -264,7 +276,7 @@ async function saveBlogPostAsJSON(
           console.log(`[REASON] ${reason}`);
 
           if (browser) await browser.close();
-          return { url: blogUrl, reason: reason };
+          return { url: blogUrl, reason: reason, abstract: abstract };
      } catch (err) {
           console.error(`[ERROR] url 저장 실패:`, err.message);
           if (browser) await browser.close();
@@ -287,22 +299,28 @@ async function shouldGeneratePDFWithGemini(
 ) {
      if (!pdfGenerationCondition) {
           pdfGenerationCondition = `
+          - 다음중 어느 하나라도 만족하는 경우
           1. ${companyname}에 대한 분석을 위주로 분석한 경우(예를 들면, ${companyname}의 실적분석, 밸류에이션, 산업분석 등).
           2. 분석 내용이 ${companyname}이 아닌 타기업에 대한 분석의 비중이 큰 경우에는 제외.
           3. 가치투자의 측면에서 정성적으로 분석한 경우
-          4. 분석 내용이 유용하고, 정보가 풍부한 경우, 내용이 직접 작성한 경우
-          5. 단순히 타인의 블로그 분석한 내용을 인용한 것에 불과한경우는 제외
-          6. 증권서 애널리스트의 리포트 내용을 단순 요약한 경우는 제외(예를 들어, xxx 애널리스트의 리포트 요약 등은 제외할 것)
-          7. 단순히 주가나 거래량 등의 정량적인 내용에 집중한 경우는 제외
-          8. 시황에 관한 분석은 반드시 제외할 것
-          9. 특징주, 이슈주, 테마주, 급등주 등에 대한 포스팅은 반드시 제외할 것`;
+          4. 분석 내용이 유용하고, 정보가 풍부한 경우, 내용을 직접 작성한 경우
+          5. IR통화 내용, 주식담당자와의 전화 통화, 탐방 내용 등을 포함한 경우
+
+          - 다음중 어느 하나인 경우에는 반드시 제외
+          6. 단순히 타인의 블로그 분석한 내용을 인용한 것에 불과한경우는 제외
+          7. 증권서 애널리스트의 리포트 내용을 단순 요약한 경우는 제외(예를 들어, xxx 애널리스트의 리포트 요약 등은 제외할 것)
+          8. 단순히 주가나 거래량 등의 정량적인 내용에 집중한 경우는 제외
+          9. 시황에 관한 분석은 반드시 제외할 것
+          10. 특징주, 이슈주, 테마주, 급등주 등에 대한 포스팅은 반드시 제외할 것`;
      }
      const prompt = `
-     아래 블로그 본문을 읽고 PDF로 저장할 가치가 있는지를 판단하여, 저장가치가 있으면 'YES', 그렇지 않으면 'NO'만 대답하세요. 반드시 그렇게 판단한 이유도 함께 작성하세요.\n
+     - 아래 블로그 본문을 읽고 PDF로 저장할 가치가 있는지를 판단하여, 저장가치가 있으면 'YES', 그렇지 않으면 'NO'만 대답하세요. 
+     - 그렇게 판단한 판단근거("reason")를 반드시 함께 작성하세요.\n
+     - 블로그 본문의 내용을 요약("abstract")해서 작성하세요
      \n
      답변 형식을 다음과 같습니다.\n
      답변형식:
-     {"result": "YES" || "NO" , "reason": 판단근거 }
+     {"result": "YES" || "NO" , "reason": 판단근거, "abstract": 요약내용 }\n
      \n
      다음의 판단조건을 모두 만족해야 합니다.     
      판단조건 :     
