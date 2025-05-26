@@ -19,7 +19,7 @@ async function saveBlogPostAsPDF(
      let browser, page;
      try {
           // companyname 하위 폴더 생성 및 경로 지정
-          const companyDir = path.join(process.cwd(), companyname);
+          const companyDir = path.join(process.cwd(), 'results', companyname);
           if (!fs.existsSync(companyDir)) {
                fs.mkdirSync(companyDir, { recursive: true });
           }
@@ -214,7 +214,7 @@ async function saveBlogPostAsJSON(
      let browser, page;
      try {
           // companyname 하위 폴더 생성 및 경로 지정
-          const companyDir = path.join(process.cwd(), companyname);
+          const companyDir = path.join(process.cwd(), 'results', companyname);
           if (!fs.existsSync(companyDir)) {
                fs.mkdirSync(companyDir, { recursive: true });
           }

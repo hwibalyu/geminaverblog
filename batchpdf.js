@@ -131,12 +131,16 @@ async function processBlogResults(
                current++;
                if (progressCallback) progressCallback(current, total);
                // 과도한 요청 방지를 위한 딜레이
-               await new Promise((resolve) => setTimeout(resolve, 1000));
+               await new Promise((resolve) => setTimeout(resolve, 200));
           }
 
           // saveDataList를 JSON으로 저장
           if (saveDataList.length > 0) {
-               const companyDir = path.join(process.cwd(), companyname);
+               const companyDir = path.join(
+                    process.cwd(),
+                    'results',
+                    companyname
+               );
                if (!fs.existsSync(companyDir)) {
                     fs.mkdirSync(companyDir, { recursive: true });
                }

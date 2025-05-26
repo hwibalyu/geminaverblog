@@ -253,7 +253,7 @@ async function crawlNaverBlogSearchAllPages(
                               nextPageButton.click(),
                          ]);
                          crawlingPageNum = logicalPageNumForNextButton; // 실제 이동한 페이지로 업데이트
-                         await delay(1000 + Math.random() * 1000);
+                         await delay(300 + Math.random() * 500);
                     } catch (navError) {
                          console.warn(
                               `[WARN] ${logicalPageNumForNextButton} 페이지로 이동 중 오류 또는 타임아웃:`,
@@ -312,7 +312,7 @@ async function crawlNaverBlogSearchAllPages(
                // 파일 저장 (companyname 하위 폴더)
                const fs = require('fs');
                const path = require('path');
-               const companyDir = path.join(process.cwd(), keyword);
+               const companyDir = path.join(process.cwd(), 'results', keyword);
                if (!fs.existsSync(companyDir)) {
                     fs.mkdirSync(companyDir, { recursive: true });
                }
